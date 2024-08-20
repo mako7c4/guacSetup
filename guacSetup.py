@@ -397,7 +397,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--http', dest='isHttp', action='store', required=False, default='False',
                         help='Use HTTP, not HTTPS, NOT RECOMMENDED')
     parser.add_argument('-u', '--url', dest='guacUrl', action='store', required='False', default='/',
-                        help='Guacamole URL if it\'s not in the web root or not running on the default port')
+                        help='Guacamole URL if it\'s not in the web root')
 
     args = parser.parse_args()
     groupName = args.groupName
