@@ -18,6 +18,18 @@ import diceware
 import argparse
 from shutil import rmtree
 import sys
+from random import randint
+
+# Function to generate a random password using diceware
+# Setting default to 5 words separated by a space
+# and adding a number at the beginning
+def getPassword():
+    diceware.config.OPTIONS_DEFAULTS['num']=5
+    diceware.config.OPTIONS_DEFAULTS['delimiter'] = ' '
+    passphrase = diceware.get_passphrase()
+    passphrase = str(randint(1,1000)) + " " + passphrase
+    return passphrase
+
 
 # Function to check to see if a connection group already exists
 def check_group(client,groupName):
@@ -46,6 +58,42 @@ def add_group(client,sName,tempDir):
     f.close()
     return
 
+
+# This function creates a user group, which we'll add users to.
+# Makes it easier to modify/delete later.
+def add_user_group(client,userGroupName,tempDir):
+    userGroupFile = tempDir + userGroupName + '-UserGroup.json'
+    f = open(userGroupFile, "a+")
+    f.write('{\n')
+    f.write('"identifier":"' + userGroupName + '",\n')
+    f.write('"attributes":{"disabled": ""}\n')
+    f.write('}\n')
+    f.close()
+    f = open(userGroupFile, "r")
+    ugPayload = f.read()
+    ugPayload = json.loads(ugPayload)
+    newUGroup = client.add_group(ugPayload)
+    f.close()
+    return
+
+def modify_user_group(client,userGroupName,studentNumber,tempDir):
+    userToAdd = userGroupName + "-" + "Student" + "-" + str(studentNumber)
+    userGroupModFile = tempDir + userToAdd + '-Mod.json'
+    f = open(userGroupModFile, "a+")
+    f.write('[{\n')
+    f.write('"op":"add",\n')
+    f.write('"path":"/",\n')
+    f.write('"value":"' + userToAdd + '"\n')
+    f.write('}]\n')
+    f.close()
+    f = open(userGroupModFile, "r")
+    ugModPayload = f.read()
+    ugModPayload = json.loads(ugModPayload)
+    ugMod = client.edit_group_members(userGroupName,ugModPayload)
+    f.close()
+    return
+
+
 # This adds a subgroup under the connection group in case
 # users have multiple connections
 def add_student_group(client,parentGroup, studentNumber,tempDir):
@@ -53,7 +101,6 @@ def add_student_group(client,parentGroup, studentNumber,tempDir):
     parentGID = get_group_id(client,parentGroup)
     groupName = parentGroup + '-Student-' + str(studentNumber)
     groupFile = tempDir + groupName + '-group.json'
-    print(groupFile)
     f = open(groupFile, "a")
     f.write('{\n')
     f.write('"parentIdentifier":"' + parentGID + '",\n')
@@ -135,7 +182,7 @@ def add_user(client,groupName,studentNumber,tempDir):
     userFile = tempDir + myStudent + ".json"
     newStudent = {}
     newStudent.update({'name': myStudent})
-    studentPass = diceware.get_passphrase()
+    studentPass = getPassword()
     newStudent.update({'pass': studentPass})
 
     f = open(userFile, "a")
@@ -241,7 +288,7 @@ def assign_perms(client,studentGroup,studentNumber,connectionName,tempDir):
     f.close()
 
 
-def main(groupName,numStudents,ipAddr,outFile,varsFile):
+def main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHttp,guacUrl):
 
     # Parse JSON file that has our variables:
     f = open(varsFile, "r")
@@ -259,7 +306,14 @@ def main(groupName,numStudents,ipAddr,outFile,varsFile):
     os.makedirs(os.path.dirname(tempDir), exist_ok=True)
 
     # Our client connection
-    client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=False)
+    if isHttp == 'True':
+        m = 'http'
+        guacUrl = ':' + guacPort + guacUrl + '/'
+        client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=guacSecure, method=m, url_path=guacUrl)
+    else:
+        m = 'https'
+        guacUrl = ':' + guacPort + 'guacUrl' + '/'
+        client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=guacSecure, method=m, url_path=guacUrl)
 
     # First add the group or school name to Guacamole. This will store all connections assigned to that group
     checkGroup=check_group(client,groupName)
@@ -269,8 +323,11 @@ def main(groupName,numStudents,ipAddr,outFile,varsFile):
     else:
         add_group(client,groupName,tempDir)
 
+    # Create the user group
+    add_user_group(client,groupName,tempDir)
+
     # Enter loop, create users, connection groups and connections for all users.
-    studentStart = int(ipAddr.split('.')[2])
+    studentStart = int(ipAddr.split('.')[3])
     studentMax = studentStart + int(numStudents)
 
     while studentStart < studentMax:
@@ -279,15 +336,19 @@ def main(groupName,numStudents,ipAddr,outFile,varsFile):
         # Parse the IP address octets
         oct1 = ipAddr.split('.')[0]
         oct2 = ipAddr.split('.')[1]
+        oct3 = ipAddr.split('.')[2]
         oct4 = ipAddr.split('.')[3]
 
         # Assemble the IP address
-        newIPAddr = oct1 + '.' + oct2 + '.' + str(studentStart) + '.' + oct4
+        newIPAddr = oct1 + '.' + oct2 + '.' + oct3 + '.' + str(studentStart)
         # Create the student Guacamole user name
         newStudent = add_user(client,groupName,studentNum,tempDir)
         save_student_info(outFile,newStudent)
 
-        # Add the student group
+        # Add the student guacamole user to a user group
+        modify_user_group(client,groupName,studentNum,tempDir)
+
+        # Add the student connection group
         add_student_group(client,groupName,studentNum,tempDir)
 
         # add the kali gui and cli connections
@@ -303,6 +364,7 @@ def main(groupName,numStudents,ipAddr,outFile,varsFile):
         connectionName = groupName + '-Kali-CLI-' + str(studentNum)
         assign_perms(client,groupName, studentNum, connectionName,tempDir)
 
+
         studentStart +=1
 
     # Delete the json files used to create users, groups, and connections.
@@ -314,7 +376,9 @@ def main(groupName,numStudents,ipAddr,outFile,varsFile):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="""Script to set up an existing Guacamole instance.
+    The Script will add a user and connection group and connections for each user. Users will only have access
+    to their own connections, one CLI and one GUI.""")
     parser.add_argument('-g', '--group-name', dest='groupName', action='store', required=True,
                         help='School or Group name')
     parser.add_argument('-n', '--number', dest='numStudents', action='store', required=True,
@@ -324,8 +388,16 @@ if __name__ == '__main__':
                         help='IP Address of the first system you would like Guacamole to connect to')
     parser.add_argument('-o', '--out-file', dest='outFile', action ='store', required=False, default='./userInfo.csv',
                         help='Output File for User Info')
-    parser.add_argument('-v', '--vars-file', dest='varsFile', action='store', required=True, default="./guacCreds.json",
+    parser.add_argument('-f', '--vars-file', dest='varsFile', action='store', required=True, default="./guacCreds.json",
                         help='file containing guacamole login info, in JSON format')
+    parser.add_argument('-p', '--port', dest='guacPort', action='store', required=False, default=443,
+                        help='Port that Guacamole is running on')
+    parser.add_argument('-k', '--insecure', dest='guacSecure', action='store', required=False, default='True',
+                        help='Do not verify TLS certificate')
+    parser.add_argument('-t', '--http', dest='isHttp', action='store', required=False, default='False',
+                        help='Use HTTP, not HTTPS, NOT RECOMMENDED')
+    parser.add_argument('-u', '--url', dest='guacUrl', action='store', required='False', default='/',
+                        help='Guacamole URL if it\'s not in the web root or not running on the default port')
 
     args = parser.parse_args()
     groupName = args.groupName
@@ -333,5 +405,9 @@ if __name__ == '__main__':
     ipAddr = args.ipAddr
     outFile = args.outFile
     varsFile = args.varsFile
+    guacPort = args.guacPort
+    guacSecure = args.guacSecure
+    isHttp = args.isHttp
+    guacUrl = args.guacUrl
 
-    main(groupName,numStudents,ipAddr,outFile,varsFile)
+    main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHttp,guacUrl)
