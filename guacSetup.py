@@ -25,9 +25,9 @@ from random import randint
 # and adding a number at the beginning
 def getPassword():
     diceware.config.OPTIONS_DEFAULTS['num']=5
-    diceware.config.OPTIONS_DEFAULTS['delimiter'] = ' '
+    diceware.config.OPTIONS_DEFAULTS['delimiter'] = '-'
     passphrase = diceware.get_passphrase()
-    passphrase = str(randint(1,1000)) + " " + passphrase
+    #passphrase = str(randint(1,1000)) + " " + passphrase
     return passphrase
 
 
