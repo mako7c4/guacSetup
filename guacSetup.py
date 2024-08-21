@@ -288,7 +288,7 @@ def assign_perms(client,studentGroup,studentNumber,connectionName,tempDir):
     f.close()
 
 
-def main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHttp,guacUrl):
+def main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHttp,guacUrl,hostsFile):
 
     # Parse JSON file that has our variables:
     f = open(varsFile, "r")
@@ -308,11 +308,16 @@ def main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHtt
     # Our client connection
     if isHttp == 'True':
         m = 'http'
-        guacUrl = ':' + guacPort + guacUrl + '/'
+        # rewrite our URL in case we're using non-standard port and url
+        if guacUrl != "/":
+            guacUrl = ':' + guacPort + guacUrl + '/'
+
         client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=guacSecure, method=m, url_path=guacUrl)
+
     else:
         m = 'https'
-        guacUrl = ':' + guacPort + 'guacUrl' + '/'
+        if guacUrl != "/":
+            guacUrl = ':' + guacPort + 'guacUrl' + '/'
         client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=guacSecure, method=m, url_path=guacUrl)
 
     # First add the group or school name to Guacamole. This will store all connections assigned to that group
@@ -351,9 +356,22 @@ def main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHtt
         # Add the student connection group
         add_student_group(client,groupName,studentNum,tempDir)
 
+        # Read file of IP addresses if we don't have a consecutive list
+        hosts = []
+        with open(hostsFile) as file:
+            for line in file:
+                hosts.append(line.rstrip())
+
         # add the kali gui and cli connections
-        add_gui_connection(client,groupName,studentNum,xrdpPassword,tempDir,newIPAddr)
-        add_cli_connection(client,groupName,studentNum,sshKeyFile,sshKeyPass,tempDir,newIPAddr)
+
+        if hosts:
+            ipAddr = hosts[studentStart -1]
+            add_gui_connection(client,groupName,studentNum,xrdpPassword,tempDir,ipAddr)
+            add_cli_connection(client,groupName,studentNum,sshKeyFile,sshKeyPass,tempDir,ipAddr)
+        else:
+
+            add_gui_connection(client,groupName,studentNum,xrdpPassword,tempDir,newIPAddr)
+            add_cli_connection(client,groupName,studentNum,sshKeyFile,sshKeyPass,tempDir,newIPAddr)
 
         # Assign permissions to connections
         # First the Kali GUI connection
@@ -398,6 +416,8 @@ if __name__ == '__main__':
                         help='Use HTTP, not HTTPS, NOT RECOMMENDED')
     parser.add_argument('-u', '--url', dest='guacUrl', action='store', required='False', default='/',
                         help='Guacamole URL if it\'s not in the web root')
+    parser.add_argument('-l', '--hosts-file', dest='hostsFile', action='store', required=False,
+                        help="File with list of IP addresses for connections")
 
     args = parser.parse_args()
     groupName = args.groupName
@@ -409,5 +429,6 @@ if __name__ == '__main__':
     guacSecure = args.guacSecure
     isHttp = args.isHttp
     guacUrl = args.guacUrl
+    hostsFile = args.hostsFile
 
-    main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHttp,guacUrl)
+    main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHttp,guacUrl,hostsFile)
