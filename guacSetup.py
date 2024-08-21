@@ -365,7 +365,7 @@ def main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHtt
         # add the kali gui and cli connections
 
         if hosts:
-            ipAddr = hosts[studentStart -1]
+            ipAddr = hosts[int(numStudents) -1]
             add_gui_connection(client,groupName,studentNum,xrdpPassword,tempDir,ipAddr)
             add_cli_connection(client,groupName,studentNum,sshKeyFile,sshKeyPass,tempDir,ipAddr)
         else:
@@ -402,7 +402,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--number', dest='numStudents', action='store', required=True,
                         help='Number of Students'
                         )
-    parser.add_argument('-i', '--ip-addr', dest='ipAddr', action='store', required=True,
+    parser.add_argument('-i', '--ip-addr', dest='ipAddr', action='store', required=False, default='10.10.10.10',
                         help='IP Address of the first system you would like Guacamole to connect to')
     parser.add_argument('-o', '--out-file', dest='outFile', action ='store', required=False, default='./userInfo.csv',
                         help='Output File for User Info')
