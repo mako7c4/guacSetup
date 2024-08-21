@@ -308,12 +308,14 @@ def main(groupName,numStudents,ipAddr,outFile,varsFile,guacPort,guacSecure,isHtt
     # Our client connection
     if isHttp == 'True':
         m = 'http'
-        guacUrl = ':' + guacPort + guacUrl + '/'
-        client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=guacSecure, method=m, url_path=guacUrl)
+        #guacUrl = ':' + guacPort + guacUrl + '/'
+        #client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=guacSecure, method=m, url_path=guacUrl)
+        guacUrl = ':' + guacPort + '/'
+        client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=False, method=m, url_path=guacUrl)
     else:
         m = 'https'
-        guacUrl = ':' + guacPort + 'guacUrl' + '/'
-        client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=guacSecure, method=m, url_path=guacUrl)
+        guacUrl = ':' + guacPort + '/'
+        client = guacapy.Guacamole(guacamoleServer, guacamoleAdmin, guacamoleAdminPass, verify=False, method=m, url_path=guacUrl)
 
     # First add the group or school name to Guacamole. This will store all connections assigned to that group
     checkGroup=check_group(client,groupName)
